@@ -34,7 +34,7 @@ typedef struct node
 {
     int val;
     struct node * next;
-};
+}   node_t;
 /*
  This struct is filled from data from the remote http request. It contains the whole remote request, the method, path, 
  version, contenttype(not implemented yet), the host and page or file.
@@ -65,12 +65,16 @@ int main(int argc, char** argv) {
         Blocking URLs using keyword 'block'
     */
     if(strcmp(argv[1], "block") == 0){
-        printf("Enter the hostnames to block in this format: example.com and exit with a newline\n");
+        printf("Enter hostnames separated by a space to block in this format: example.com\nType a newline character to exit\n");
         char buff[BUFFLEN];
+        char *input = calloc(BUFFLEN, sizeof(char));
         while(*(fgets(buff, sizeof(buff), stdin)) != '\n')
         {
-            printf("%s", buff);
+            input = realloc(input, strlen(input)+1+strlen(buff));
+            strcat(input,buff); 
         }
+        //printf("%s", input);
+      
         return 0;
     }
 
