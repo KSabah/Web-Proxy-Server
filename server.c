@@ -55,6 +55,7 @@ void getReqInfo(char *request, struct req *myreq);
 void returnFile(int socket, char* filepath);
 void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX]);
 FILE *fp_log; //log
+FILE *blocklist; //list of blocked URLs
 
 /*
  Main setup the socket for listening and enters an infinate while loop. 
@@ -87,15 +88,21 @@ int main(int argc, char** argv) {
             if(data[i]!=NULL)
             {
                 strcpy(current->val, data[i]);
-                printf("'%s'\n", current->val); 
                 current = current->next;
 		        ptr = strtok(NULL, delim);
             }
             i++;
 	    }      
+        blocklist = fopen("server.blocklist", "a");
+        current = head;
+        while(current->next!=NULL){
+            printf("'%s'\n", current->val); 
+            fprintf(blocklist, "%s\n", current->val);
+            current = current->next;
+        }
+        fclose(blocklist);
         return 0;
     }
-
     else {
         time_t result;
     result = time(NULL);
