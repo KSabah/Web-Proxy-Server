@@ -16,7 +16,7 @@
 #define MAX 2048
 #define WEBPORT 80
 #define BUFFLEN 500
-
+#define MAX_STR_LEN 100
 char* internet= "/usr/bin/google-chrome-stable";
 /*
  This struct contains the info that is passed to a thread.
@@ -32,9 +32,9 @@ struct args
 */
 typedef struct node 
 {
-    int val;
+    char val[MAX_STR_LEN];
     struct node * next;
-}   node_t;
+} Node_t;   
 /*
  This struct is filled from data from the remote http request. It contains the whole remote request, the method, path, 
  version, contenttype(not implemented yet), the host and page or file.
@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
         Blocking URLs using keyword 'block'
     */
     if(strcmp(argv[1], "block") == 0){
-        printf("Enter hostnames separated by a space to block in this format: example.com\nType a newline character to exit\n");
+        printf("Enter hostnames separated by a space to block in this format: example.com\nEnter a newline character on a blank line to exit\n");
         char buff[BUFFLEN];
         char *input = calloc(BUFFLEN, sizeof(char));
         while(*(fgets(buff, sizeof(buff), stdin)) != '\n')
@@ -73,8 +73,26 @@ int main(int argc, char** argv) {
             input = realloc(input, strlen(input)+1+strlen(buff));
             strcat(input,buff); 
         }
-        //printf("%s", input);
-      
+        Node_t *head = NULL;
+        head = malloc(sizeof(Node_t));
+        Node_t *current = head;
+        char delim[] = " ";
+        char *data[sizeof(input)+1];
+        char *ptr = strtok(input, delim);
+        int i = 0;
+	    while(ptr != NULL)
+	    {
+            data[i] = ptr;
+            current->next = malloc(sizeof(Node_t));
+            if(data[i]!=NULL)
+            {
+                strcpy(current->val, data[i]);
+                printf("'%s'\n", current->val); 
+                current = current->next;
+		        ptr = strtok(NULL, delim);
+            }
+            i++;
+	    }      
         return 0;
     }
 
