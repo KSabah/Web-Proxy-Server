@@ -13,8 +13,9 @@
 #include <unistd.h>
 
 #define MAX_REQUEST 8192
-#define MAX_URL 2048
+#define MAX 2048
 #define WEBPORT 80
+#define BUFFLEN 500
 
 char* internet= "/usr/bin/google-chrome-stable";
 /*
@@ -27,6 +28,14 @@ struct args
     char buffer[MAX_REQUEST];
 };
 /*
+    This struct contains informations about the linked list used for blocking URLs
+*/
+typedef struct node 
+{
+    int val;
+    struct node * next;
+};
+/*
  This struct is filled from data from the remote http request. It contains the whole remote request, the method, path, 
  version, contenttype(not implemented yet), the host and page or file.
  */
@@ -34,17 +43,17 @@ struct req
 {
     char request[MAX_REQUEST];
     char method[16];
-    char path[MAX_URL];
+    char path[MAX];
     char version[16];
     char contenttype[128];
-    char host[MAX_URL];
-    char page[MAX_URL];
+    char host[MAX];
+    char page[MAX];
 };
 
 void *handleConnection(void *args);
 void getReqInfo(char *request, struct req *myreq);
 void returnFile(int socket, char* filepath);
-void sendRemoteReq(char filename[MAX_URL], char host[MAX_URL], int socket, char path[MAX_URL]);
+void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX]);
 FILE *fp_log; //log
 
 /*
@@ -52,9 +61,24 @@ FILE *fp_log; //log
  When a connection arrives it spawns a thread and passes the request to the handleConnection function
  */
 int main(int argc, char** argv) {
-    time_t result;
+    /*
+        Blocking URLs using keyword 'block'
+    */
+    if(strcmp(argv[1], "block") == 0){
+        printf("Enter the hostnames to block in this format: example.com and exit with a newline\n");
+        char buff[BUFFLEN];
+        while(*(fgets(buff, sizeof(buff), stdin)) != '\n')
+        {
+            printf("%s", buff);
+        }
+        return 0;
+    }
+
+    else {
+        time_t result;
     result = time(NULL);
     struct tm* brokentime = localtime(&result);
+    
     int port = atoi(argv[1]);
     int srvfd  = makeListener(port);
     int threadID = 0;
@@ -78,9 +102,10 @@ int main(int argc, char** argv) {
     printf("Connection closed");
     close(srvfd);     
     return 0;
+    }
 }
 /*
- Handels the connection by passing the request to the getReqInfo function for parsing 
+ Handles the connection by passing the request to the getReqInfo function for parsing 
  and then retuns the request http page via the sendRemoteReq() function.
  */
 void *handleConnection(void *args)
@@ -102,22 +127,21 @@ void *handleConnection(void *args)
  */
 void getReqInfo(char *request, struct req *myreq)
 {
-    char host[MAX_URL], page[MAX_URL];
+    char host[MAX], page[MAX];
     strncpy(myreq->request, request, MAX_REQUEST-1);
     strncpy(myreq->method, strtok(request, " "), 16-1);
-    strncpy(myreq->path, strtok(NULL, " "), MAX_URL-1);
+    strncpy(myreq->path, strtok(NULL, " "), MAX-1);
     strncpy(myreq->version, strtok(NULL, "\r\n"), 16-1);
     sscanf(myreq->path, "http://%99[^/]%99[^\n]", host, page);
-    strncpy(myreq->host, host, MAX_URL-1);
-    strncpy(myreq->page, page, MAX_URL-1);
+    strncpy(myreq->host, host, MAX-1);
+    strncpy(myreq->page, page, MAX-1);
     fprintf (fp_log, "method: %s\nversion: %s\npath: %s\nhost: %s\npage: %s\n", myreq->method, myreq->version, myreq->path, myreq->host, myreq->page);
     printf("method: %s\nversion: %s\npath: %s\nhost: %s\npage: %s\n", myreq->method, myreq->version, myreq->path, myreq->host, myreq->page);
-    
 }
 /*
  Sends the HTTP request to the remote site and retuns the HTTP payload to the connected client.
  */
-void sendRemoteReq(char filename[MAX_URL], char host[MAX_URL], int socket, char path[MAX_URL])
+void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX])
 {
     time_t result;
     result = time(NULL);
