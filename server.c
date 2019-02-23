@@ -74,6 +74,7 @@ int main(int argc, char** argv) {
             input = realloc(input, strlen(input)+1+strlen(buff));
             strcat(input,buff); 
         }
+        input[strcspn(input, "\n")] = 0;
         Node_t *head = NULL;
         head = malloc(sizeof(Node_t));
         Node_t *current = head;
@@ -96,7 +97,7 @@ int main(int argc, char** argv) {
         blocklist = fopen("server.blocklist", "a");
         current = head;
         while(current->next!=NULL){
-            printf("'%s'\n", current->val); 
+            //printf("'%s'\n", current->val); 
             fprintf(blocklist, "%s\n", current->val);
             current = current->next;
         }
@@ -156,6 +157,20 @@ void *handleConnection(void *args)
  */
 void getReqInfo(char *request, struct req *myreq)
 {
+    fopen("server.blocklist", "a+");
+    Node_t *head = NULL;
+    head = malloc(sizeof(Node_t));
+    Node_t *current = head;
+    char buff[BUFFLEN];
+    char *input = calloc(BUFFLEN, sizeof(char));
+    while(fgets(buff, sizeof(buff), blocklist))
+    {
+        input = realloc(input, strlen(input)+1+strlen(buff));
+        strcat(input,buff); 
+        printf("%s\n", input);
+    }
+
+
     char host[MAX], page[MAX];
     strncpy(myreq->request, request, MAX_REQUEST-1);
     strncpy(myreq->method, strtok(request, " "), 16-1);
