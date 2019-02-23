@@ -97,7 +97,6 @@ int main(int argc, char** argv) {
         blocklist = fopen("server.blocklist", "a");
         current = head;
         while(current->next!=NULL){
-            //printf("'%s'\n", current->val); 
             fprintf(blocklist, "%s\n", current->val);
             current = current->next;
         }
@@ -147,6 +146,45 @@ void *handleConnection(void *args)
     bzero(myarg->buffer, MAX_REQUEST);
     bytesRead = read(myarg->connfd, myarg->buffer, sizeof(myarg->buffer));
     getReqInfo(myarg->buffer, myreq);
+    blocklist = fopen("server.blocklist", "a+");
+    Node_t *head = NULL;
+    head = malloc(sizeof(Node_t));
+    Node_t *current = head;
+    char buff[BUFFLEN];
+    char *input = calloc(BUFFLEN, sizeof(char));
+    while(fgets(buff, sizeof(buff), blocklist))
+    {
+        input = realloc(input, strlen(input)+1+strlen(buff));
+        strcat(input,buff); 
+    } 
+    char delim[] = "\n";
+    char *data[sizeof(input)+1];
+    char *ptr = strtok(input, delim);
+    int i = 0;
+	while(ptr != NULL)
+    {
+        data[i] = ptr;
+        current->next = malloc(sizeof(Node_t));
+        if(data[i]!=NULL)
+        {
+            strcpy(current->val, data[i]);
+            current = current->next;
+		    ptr = strtok(NULL, delim);
+        }
+            i++;
+	}  
+    current = head;
+    while(current->next!=NULL)
+    {
+        if(strcmp(current->val,myreq->host) == 0)
+        {
+            fp_log = fopen("server.log", "a");
+            fprintf(fp_log, "Tried to access blocked URL, connection aborted.");
+            printf("This URL is blocked.\n");
+            exit(0);
+        }
+        current = current->next;
+    } 
     sendRemoteReq(myreq->page, myreq->host, myarg->connfd, myreq->path);
     fprintf(fp_log, "Thread %d exits\n", myarg->id); 
     printf("Thread %d exits\n", myarg->id);
@@ -157,20 +195,6 @@ void *handleConnection(void *args)
  */
 void getReqInfo(char *request, struct req *myreq)
 {
-    fopen("server.blocklist", "a+");
-    Node_t *head = NULL;
-    head = malloc(sizeof(Node_t));
-    Node_t *current = head;
-    char buff[BUFFLEN];
-    char *input = calloc(BUFFLEN, sizeof(char));
-    while(fgets(buff, sizeof(buff), blocklist))
-    {
-        input = realloc(input, strlen(input)+1+strlen(buff));
-        strcat(input,buff); 
-        printf("%s\n", input);
-    }
-
-
     char host[MAX], page[MAX];
     strncpy(myreq->request, request, MAX_REQUEST-1);
     strncpy(myreq->method, strtok(request, " "), 16-1);
@@ -180,7 +204,6 @@ void getReqInfo(char *request, struct req *myreq)
     strncpy(myreq->host, host, MAX-1);
     strncpy(myreq->page, page, MAX-1);
     fprintf (fp_log, "method: %s\nversion: %s\npath: %s\nhost: %s\npage: %s\n", myreq->method, myreq->version, myreq->path, myreq->host, myreq->page);
-    printf("method: %s\nversion: %s\npath: %s\nhost: %s\npage: %s\n", myreq->method, myreq->version, myreq->path, myreq->host, myreq->page);
 }
 /*
  Sends the HTTP request to the remote site and retuns the HTTP payload to the connected client.
@@ -206,7 +229,6 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
     fprintf(fp_log, "request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
     printf("request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
     char* prog[3];
-    printf("%c\n", host);
     prog[0] = internet;
     prog[1] = path;
     prog[2] = '\0';
@@ -221,7 +243,6 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
         totalBytesWritten += chunkWritten;
     }
     fprintf (fp_log, "completed sending %s at %d bytes at %s\n------------------------------------------------------------------------------------\n", filename, totalBytesRead, asctime(brokentime));
-    printf("completed sending %s at %d bytes at %s\n------------------------------------------------------------------------------------\n", filename, totalBytesRead, asctime(brokentime));
     fclose(fp_log);
     close(fd);
     close(socket);
