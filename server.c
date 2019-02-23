@@ -11,6 +11,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #define MAX_REQUEST 8192
 #define MAX 2048
@@ -139,6 +140,7 @@ int main(int argc, char** argv) {
  */
 void *handleConnection(void *args)
 {
+    clock_t start_time = clock();
     struct args* myarg = (struct args*) args;
     struct req* myreq;
     myreq = (struct req*) malloc(sizeof(struct req));
@@ -180,11 +182,13 @@ void *handleConnection(void *args)
         {
             fp_log = fopen("server.log", "a");
             fprintf(fp_log, "Tried to access blocked URL, connection aborted.");
-            printf("This URL is blocked.\n");
+            printf("This URL is blocked, aborting connection.\n");
             exit(0);
         }
         current = current->next;
     } 
+    int tt = clock() - start_time;
+    printf("Time taken: %dms\n", tt);
     sendRemoteReq(myreq->page, myreq->host, myarg->connfd, myreq->path);
     fprintf(fp_log, "Thread %d exits\n", myarg->id); 
     printf("Thread %d exits\n", myarg->id);
@@ -200,7 +204,10 @@ void getReqInfo(char *request, struct req *myreq)
     strncpy(myreq->method, strtok(request, " "), 16-1);
     strncpy(myreq->path, strtok(NULL, " "), MAX-1);
     strncpy(myreq->version, strtok(NULL, "\r\n"), 16-1);
-    sscanf(myreq->path, "http://%99[^/]%99[^\n]", host, page);
+    if(strstr(myreq->request, "https") != NULL)
+        sscanf(myreq->path, "https://%99[^/]%99[^\n]", host, page);
+    else 
+        sscanf(myreq->path, "http://%99[^/]%99[^\n]", host, page);
     strncpy(myreq->host, host, MAX-1);
     strncpy(myreq->page, page, MAX-1);
     fprintf (fp_log, "method: %s\nversion: %s\npath: %s\nhost: %s\npage: %s\n", myreq->method, myreq->version, myreq->path, myreq->host, myreq->page);
@@ -226,8 +233,8 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
     strcat(reqBuffer, "host: ");
     strcat(reqBuffer, host);
     strcat(reqBuffer, "\n\n");
-    fprintf(fp_log, "request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
-    printf("request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
+    fprintf(fp_log, "Request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
+    printf("Request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
     char* prog[3];
     prog[0] = internet;
     prog[1] = path;
@@ -236,13 +243,10 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
     chunkRead = write(fd, reqBuffer, strlen(reqBuffer));
     int totalBytesRead = 0;
     int totalBytesWritten = 0;
-    while ((chunkRead = read(fd, data, sizeof(data)))!= (size_t)NULL)//send file
-    {
-        chunkWritten = write(socket, data, chunkRead);
-        totalBytesRead += chunkRead;
-        totalBytesWritten += chunkWritten;
-    }
-    fprintf (fp_log, "completed sending %s at %d bytes at %s\n------------------------------------------------------------------------------------\n", filename, totalBytesRead, asctime(brokentime));
+    chunkRead = read(fd, data, sizeof(data));
+    chunkWritten = write(socket, data, chunkRead);
+    fprintf (fp_log, "Completed sending %s at %d bytes at %s\n------------------------------------------------------------------------------------\n", filename, totalBytesRead, asctime(brokentime));
+    printf("Completed sending %s at %d bytes at %s\n------------------------------------------------------------------------------------\n", filename, totalBytesRead, asctime(brokentime));
     fclose(fp_log);
     close(fd);
     close(socket);
