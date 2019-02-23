@@ -27,9 +27,8 @@ void func(int sockfd)
     write(sockfd, buff, sizeof(buff)); 
     bzero(buff, sizeof(buff)); 
     read(sockfd, buff, sizeof(buff)); 
-    printf("From Server : %s", buff); 
     if ((strncmp(buff, "exit", 4)) == 0) { 
-        printf("Client Exit...\n"); 
+        printf("Goodbye.\n"); 
     }
 }
   
@@ -38,18 +37,18 @@ int main(int argc, char** argv)
     int port = PORT;	
     int sockfd, connfd; 
     struct sockaddr_in servaddr, cli;
-   printf("%d\n", port); 
-    if(argv[1] != NULL) {port = atoi(argv[1]);}
-   printf("%d", port);
-
+    if(argv[1] != NULL)
+        port = atoi(argv[1]);
+    printf("You're connected on port number: %d\n", port);
+    
     // socket create and varification 
     sockfd = socket(AF_INET, SOCK_STREAM, 0); 
     if (sockfd == -1) { 
-        printf("socket creation failed...\n"); 
+        printf("Socket creation failed, aborting.\n"); 
         exit(0); 
     } 
     else
-        printf("Socket successfully created..\n"); 
+        printf("Socket successfully created.\n"); 
     bzero(&servaddr, sizeof(servaddr)); 
   
     // assign IP, PORT 
@@ -59,11 +58,11 @@ int main(int argc, char** argv)
   
     // connect the client socket to server socket 
     if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0) { 
-        printf("connection with the server failed...\n"); 
+        printf("Connection with the server failed, aborting.\n"); 
         exit(0); 
     } 
     else
-        printf("connected to the server..\n"); 
+        printf("Connection established.\n"); 
   
     // function for chat 
     func(sockfd); 
