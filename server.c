@@ -1,5 +1,5 @@
 /*
- From: https://github.com/shawnzam/webproxy-assignment-
+     From: https://github.com/shawnzam/webproxy-assignment-
  */
 #include <stdio.h>
 #include <unistd.h>
@@ -18,10 +18,14 @@
 #define WEBPORT 80
 #define BUFFLEN 500
 #define MAX_STR_LEN 100
+#define MAX_MSG 200
+#define CACHE_LIMIT 5
+
 char* internet= "/usr/bin/google-chrome-stable";
+
 /*
- This struct contains the info that is passed to a thread.
- */
+     This struct contains the info that is passed to a thread.
+*/
 struct args 
 {
     int id;
@@ -34,12 +38,23 @@ struct args
 typedef struct node 
 {
     char val[MAX_STR_LEN];
-    struct node * next;
+    struct node *next;
 } Node_t;   
 /*
- This struct is filled from data from the remote http request. It contains the whole remote request, the method, path, 
- version, contenttype(not implemented yet), the host and page or file.
- */
+    This struct contains information for implementing the cache
+*/
+typedef struct cacheObject
+{
+	char request[MAX_MSG];
+	char message[MAX_MSG];
+	char site[MAX_MSG];
+	struct cacheObject *next;
+} Cache_t;
+Cache_t* start;
+/*
+    This struct is filled from data from the remote http request. It contains the whole remote request, the method, path, 
+    version, contenttype(not implemented yet), the host and page or file.
+*/
 struct req
 {
     char request[MAX_REQUEST];
@@ -57,6 +72,11 @@ void returnFile(int socket, char* filepath);
 void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX]);
 FILE *fp_log; //log
 FILE *blocklist; //list of blocked URLs
+
+void makeCache();
+//Cache_t* inCache(char request[MAX_MSG]);
+void addCache(Cache_t* obj);
+void printCache();
 
 /*
  Main setup the socket for listening and enters an infinate while loop. 
@@ -250,4 +270,54 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
     fclose(fp_log);
     close(fd);
     close(socket);
+}
+
+void makeCache()
+{
+    Cache_t *start = NULL;
+    start = malloc(sizeof(Cache_t));
+    Cache_t *current = start;
+    int i = 0;
+    while(i < CACHE_LIMIT)
+    {
+        current->next = malloc(sizeof(Cache_t));
+        current = current->next;
+        i++;
+    }
+    current->next = NULL;
+}
+
+void addCache(Cache_t* obj)
+{
+	free(start->next->next->next->next);
+	start->next->next->next->next = NULL;
+	obj->next = start;
+	start = obj;
+}
+
+Cache_t* inCache(char request[MAX_MSG])
+{
+	int i = 0;
+	Cache_t* obj = start;
+	while(i < CACHE_LIMIT){
+		printf("Obj REQ: %s\nREQ: %s\n", obj->request, request);
+		if(strcmp(obj->request, request) == 0) {return obj;}
+		else {obj = obj->next;}
+		i++;
+	}
+	return obj;
+}
+
+void printCache()
+{
+    Cache_t* current;
+	current = start;
+	int i = 0;
+	while(i < CACHE_LIMIT)
+    {
+		printf("Number: %d\nRequest: %s\nMessage: %s\nSite: %s\n\n", i, current->request, current->message, current->site);
+		i++;
+		current = current->next;
+	}
+
 }
