@@ -1,8 +1,7 @@
 /*
      From: https://github.com/shawnzam/webproxy-assignment-
- */
+*/
 #include <stdio.h>
-#include <unistd.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -18,7 +17,7 @@
 #define WEBPORT 80
 #define BUFFLEN 500
 #define MAX_STR_LEN 100
-#define MAX_MSG 200
+#define MAX_MSG 1000
 #define CACHE_LIMIT 5
 
 char* internet= "/usr/bin/google-chrome-stable";
@@ -50,7 +49,7 @@ typedef struct cacheObject
 	char site[MAX_MSG];
 	struct cacheObject *next;
 } Cache_t;
-Cache_t* start;
+Cache_t *start = NULL;
 /*
     This struct is filled from data from the remote http request. It contains the whole remote request, the method, path, 
     version, contenttype(not implemented yet), the host and page or file.
@@ -69,12 +68,12 @@ struct req
 void *handleConnection(void *args);
 void getReqInfo(char *request, struct req *myreq);
 void returnFile(int socket, char* filepath);
-void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX]);
+void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX], char buffer[MAX_REQUEST]);
 FILE *fp_log; //log
 FILE *blocklist; //list of blocked URLs
 
 void makeCache();
-//Cache_t* inCache(char request[MAX_MSG]);
+Cache_t* inCache(char request[MAX_MSG]);
 void addCache(Cache_t* obj);
 void printCache();
 
@@ -82,11 +81,10 @@ void printCache();
  Main setup the socket for listening and enters an infinate while loop. 
  When a connection arrives it spawns a thread and passes the request to the handleConnection function
  */
-int main(int argc, char** argv) {
-    /*
-        Blocking URLs using keyword 'block'
-    */
-    if(strcmp(argv[1], "block") == 0){
+int main(int argc, char** argv) 
+{ 
+    if(strcmp(argv[1], "block") == 0)
+    {
         printf("Enter hostnames separated by a space to block in this format: example.com\nEnter a newline character on a blank line to exit\n");
         char buff[BUFFLEN];
         char *input = calloc(BUFFLEN, sizeof(char));
@@ -124,35 +122,37 @@ int main(int argc, char** argv) {
         fclose(blocklist);
         return 0;
     }
+
     else {
+        makeCache();
         time_t result;
-    result = time(NULL);
-    struct tm* brokentime = localtime(&result);
+        result = time(NULL);
+        struct tm* brokentime = localtime(&result);
     
-    int port = atoi(argv[1]);
-    int srvfd  = makeListener(port);
-    int threadID = 0;
-    fp_log = fopen("server.log", "a");
-    fprintf(fp_log, "Server started at %s \nListening on Port %d\n",asctime(brokentime), port);	
-    printf("Server started at %s \nListening on Port %d\n",asctime(brokentime), port);	
-    fclose(fp_log);
-    while (1)
-    {
-        struct args* myargs;
-        myargs = (struct args*) malloc(sizeof(struct args));
-        myargs->connfd = listenFor(srvfd);
+        int port = atoi(argv[1]);
+        int srvfd  = makeListener(port);
+        int threadID = 0;
         fp_log = fopen("server.log", "a");
-        pthread_t thread;
-        threadID++;
-        myargs->id = threadID;
-        pthread_create(&thread, NULL, handleConnection, myargs); //thread never joins
-        fprintf(fp_log, "Thread %d created\n", myargs->id); 
-        printf("Thread %d created\n", myargs->id);
-    }
-    printf("Connection closed");
-    close(srvfd);     
-    return 0;
-    }
+        fprintf(fp_log, "Server started at %s \nListening on Port %d\n",asctime(brokentime), port);	
+        printf("Server started at %s \nListening on Port %d\n",asctime(brokentime), port);	
+        fclose(fp_log);
+        while (1)
+        {
+            struct args* myargs;
+            myargs = (struct args*) malloc(sizeof(struct args));
+            myargs->connfd = listenFor(srvfd);
+            fp_log = fopen("server.log", "a");
+            pthread_t thread;
+            threadID++;
+            myargs->id = threadID;
+            pthread_create(&thread, NULL, handleConnection, myargs); //thread never joins
+            fprintf(fp_log, "Thread %d created\n", myargs->id); 
+            printf("Thread %d created\n", myargs->id);
+        }
+        printf("Connection closed");
+        close(srvfd);     
+        return 0;
+        }
 }
 /*
  Handles the connection by passing the request to the getReqInfo function for parsing 
@@ -165,9 +165,9 @@ void *handleConnection(void *args)
     struct req* myreq;
     myreq = (struct req*) malloc(sizeof(struct req));
     int bytesRead;
+    printCache();
     bzero(myarg->buffer, MAX_REQUEST);
     bytesRead = read(myarg->connfd, myarg->buffer, sizeof(myarg->buffer));
-    getReqInfo(myarg->buffer, myreq);
     blocklist = fopen("server.blocklist", "a+");
     Node_t *head = NULL;
     head = malloc(sizeof(Node_t));
@@ -196,20 +196,44 @@ void *handleConnection(void *args)
             i++;
 	}  
     current = head;
-    while(current->next!=NULL)
+    while(current->next != NULL)
     {
         if(strcmp(current->val,myreq->host) == 0)
         {
             fp_log = fopen("server.log", "a");
             fprintf(fp_log, "Tried to access blocked URL, connection aborted.");
             printf("This URL is blocked, aborting connection.\n");
-            exit(0);
+            free(myreq);
+            fprintf(fp_log, "Thread %d exits\n", myarg->id); 
+            printf("Thread %d exits\n", myarg->id);
+            pthread_exit(NULL);
         }
         current = current->next;
     } 
     int tt = clock() - start_time;
     printf("Time taken: %dms\n", tt);
-    sendRemoteReq(myreq->page, myreq->host, myarg->connfd, myreq->path);
+    char request[MAX_MSG];
+    strncpy(request, myarg->buffer, MAX_MSG-1);
+    Cache_t* obj = NULL;
+    obj = inCache(request);
+    if(obj->request != NULL)
+    {
+	    printf("Found cached data?\n");
+	    write(myarg->connfd, obj->message, MAX_MSG);
+	    printf("Sent\n");
+	    char* prog[3];
+    	    prog[0] = internet;
+    	    prog[1] = obj->site;
+    	    prog[2] = '\0';
+        //execvp(prog[0], prog);       
+    }
+    else
+    {
+    	getReqInfo(myarg->buffer, myreq);
+    	sendRemoteReq(myreq->page, myreq->host, myarg->connfd, myreq->path, request);
+    }
+    printCache();
+    free(myreq);
     fprintf(fp_log, "Thread %d exits\n", myarg->id); 
     printf("Thread %d exits\n", myarg->id);
     pthread_exit(NULL);
@@ -235,7 +259,7 @@ void getReqInfo(char *request, struct req *myreq)
 /*
  Sends the HTTP request to the remote site and retuns the HTTP payload to the connected client.
  */
-void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX])
+void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX], char buffer[MAX_REQUEST])
 {
     time_t result;
     result = time(NULL);
@@ -255,11 +279,6 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
     strcat(reqBuffer, "\n\n");
     fprintf(fp_log, "Request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
     printf("Request sent to %s :\n%s\nSent at: %s\n", host, reqBuffer, asctime(brokentime));
-    char* prog[3];
-    prog[0] = internet;
-    prog[1] = path;
-    prog[2] = '\0';
-    execvp(prog[0], prog);
     chunkRead = write(fd, reqBuffer, strlen(reqBuffer));
     int totalBytesRead = 0;
     int totalBytesWritten = 0;
@@ -267,6 +286,17 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
     chunkWritten = write(socket, data, chunkRead);
     fprintf (fp_log, "Completed sending %s at %d bytes at %s\n------------------------------------------------------------------------------------\n", filename, totalBytesRead, asctime(brokentime));
     printf("Completed sending %s at %d bytes at %s\n------------------------------------------------------------------------------------\n", filename, totalBytesRead, asctime(brokentime));
+    char *prog[3];
+    prog[0] = internet;
+    prog[1] = path;
+    prog[2] = '\0';
+    Cache_t* obj;
+    obj = malloc(sizeof(Cache_t*));
+    strcpy(obj->request, buffer);
+    strncpy(obj->message, data, MAX_MSG-1);
+    strncpy(obj->site, path, MAX_MSG-1);
+    addCache(obj);
+    //execvp(prog[0], prog);
     fclose(fp_log);
     close(fd);
     close(socket);
@@ -274,7 +304,6 @@ void sendRemoteReq(char filename[MAX], char host[MAX], int socket, char path[MAX
 
 void makeCache()
 {
-    Cache_t *start = NULL;
     start = malloc(sizeof(Cache_t));
     Cache_t *current = start;
     int i = 0;
@@ -284,7 +313,6 @@ void makeCache()
         current = current->next;
         i++;
     }
-    current->next = NULL;
 }
 
 void addCache(Cache_t* obj)
@@ -300,17 +328,18 @@ Cache_t* inCache(char request[MAX_MSG])
 	int i = 0;
 	Cache_t* obj = start;
 	while(i < CACHE_LIMIT){
-		printf("Obj REQ: %s\nREQ: %s\n", obj->request, request);
-		if(strcmp(obj->request, request) == 0) {return obj;}
-		else {obj = obj->next;}
+		if(strcmp(obj->request, request) == 0) 
+            return obj;
+		else 
+            obj = obj->next;
 		i++;
 	}
-	return obj;
+	return 0;
 }
 
 void printCache()
 {
-    Cache_t* current;
+    Cache_t* current = NULL;
 	current = start;
 	int i = 0;
 	while(i < CACHE_LIMIT)
